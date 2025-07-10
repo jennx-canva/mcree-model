@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple GLB Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .log { background: #f0f0f0; padding: 10px; margin: 5px 0; border-radius: 4px; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+        .info { background: #e3f2fd; color: #1565c0; }
+        button { padding: 10px 20px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>GLB File Loading Test</h1>
+    <p>Testing if 'low_poly_mccree-transformed.glb' can be loaded</p>
+    
+    <button onclick="testFetch()">Test File Fetch</button>
+    <button onclick="testThreeJS()">Test Three.js Loading</button>
+    <button onclick="clearLog()">Clear Log</button>
+    
+    <div id="log"></div>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.153.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.153.0/examples/jsm/"
+            }
+        }
+    </script>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        
+        const logDiv = document.getElementById('log');
+        
+        function addLog(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            logDiv.appendChild(div);
+            console.log(message);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        window.clearLog = function() {
+            logDiv.innerHTML = '';
+        }
+        
+        window.testFetch = function() {
+            addLog('🔍 Testing file fetch...', 'info');
+            
+            const fileName = 'low_poly_mccree-transformed.glb';
+            addLog(`Attempting to fetch: ${fileName}`, 'info');
+            
+            fetch(fileName)
+                .then(response => {
+                    addLog(`Response status: ${response.status} ${response.statusText}`, 
+                           response.ok ? 'success' : 'error');
+                    
+                    if (response.ok) {
+                        addLog(`Content-Type: ${response.headers.get('content-type')}`, 'info');
+                        addLog(`Content-Length: ${response.headers.get('content-length')} bytes`, 'info');
+                        
+                        return response.arrayBuffer();
+                    } else {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                })
+                .then(buffer => {
+                    addLog(`✅ File fetched successfully! Size: ${buffer.byteLength} bytes`, 'success');
+                    
+                    // Check GLB header
+                    const view = new DataView(buffer);
+                    const magic = view.getUint32(0, true);
+                    const version = view.getUint32(4, true);
+                    const length = view.getUint32(8, true);
+                    
+                    if (magic === 0x46546C67) { // 'glTF' in little endian
+                        addLog(`✅ Valid GLB file detected (magic: 0x${magic.toString(16)}, version: ${version}, length: ${length})`, 'success');
+                    } else {
+                        addLog(`❌ Invalid GLB file header (magic: 0x${magic.toString(16)})`, 'error');
+                    }
+                })
+                .catch(error => {
+                    addLog(`❌ Fetch failed: ${error.message}`, 'error');
+                    console.error('Fetch error:', error);
+                });
+        }
+        
+        window.testThreeJS = function() {
+            addLog('🔍 Testing Three.js GLTFLoader...', 'info');
+            
+            const loader = new GLTFLoader();
+            const fileName = 'low_poly_mccree-transformed.glb';
+            
+            loader.load(
+                fileName,
+                function(gltf) {
+                    addLog('✅ GLTFLoader success!', 'success');
+                    addLog(`Scene children: ${gltf.scene.children.length}`, 'info');
+                    addLog(`Animations: ${gltf.animations.length}`, 'info');
+                    
+                    // Check what's in the scene
+                    gltf.scene.traverse((child) => {
+                        if (child.isMesh) {
+                            addLog(`Found mesh: ${child.name || 'unnamed'} (geometry: ${child.geometry.constructor.name})`, 'info');
+                        }
+                    });
+                },
+                function(progress) {
+                    const percent = (progress.loaded / progress.total * 100).toFixed(1);
+                    addLog(`Loading progress: ${percent}%`, 'info');
+                },
+                function(error) {
+                    addLog(`❌ GLTFLoader failed: ${error.message}`, 'error');
+                    console.error('GLTFLoader error:', error);
+                }
+            );
+        }
+        
+        // Auto-run tests on page load
+        window.addEventListener('load', () => {
+            addLog('🚀 Page loaded. Running automatic tests...', 'info');
+            setTimeout(() => {
+                testFetch();
+                setTimeout(() => testThreeJS(), 2000);
+            }, 500);
+        });
+    </script>
+</body>
+</html> 
